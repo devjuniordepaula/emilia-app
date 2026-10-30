@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import { connection } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { AppointmentsView } from '@/components/feactures/AppointmentsView'
 import { Appointment } from '@/components/feactures/DailyTimeLine'
@@ -13,14 +14,21 @@ async function AppointmentsContainer({ searchParams }: { searchParams: Promise<{
   const supabase = await createClient()
   const resolvedParams = await searchParams
   
-  const selectedDate = resolvedParams.date || format(new Date(), 'yyyy-MM-dd')
+  let selectedDate = resolvedParams.date
+  
+  // Se a data não vier na URL, invocamos connection() para satisfazer a restrição
+  // de prerender estático do Next.js 16 e só então instanciamos new Date() com segurança.
+  if (!selectedDate) {
+    await connection()
+    selectedDate = format(new Date(), 'yyyy-MM-dd')
+  }
   
   // Calcula inicio e fim do mês atual
   const currentDateObj = new Date(`${selectedDate}T00:00:00`)
   const firstDayOfMonth = format(startOfMonth(currentDateObj), 'yyyy-MM-dd')
   const lastDayOfMonth = format(endOfMonth(currentDateObj), 'yyyy-MM-dd')
 
-  // Busca TODAS as visitas do mês ativo de uma só vez
+  // Busca TODAS as visitas do mês ativo de uma só vez (otimização client-side 0ms)
   const { data: monthAppointments } = await supabase
     .from('appointments')
     .select(`
