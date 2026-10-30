@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { MapPin, Phone, Clock, ChevronLeft, ChevronRight, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { updateAppointmentStatus } from '@/app/actions/appointments'
@@ -19,6 +18,7 @@ export type Client = {
 
 export type Appointment = {
   id: string
+  appointment_date: string
   start_time: string
   end_time: string
   status: 'scheduled' | 'completed' | 'canceled'
@@ -28,18 +28,18 @@ export type Appointment = {
 interface DailyTimelineProps {
   initialAppointments: Appointment[]
   selectedDate: string
+  onDateChange: (newDate: string) => void
 }
 
-export function DailyTimeline({ initialAppointments, selectedDate }: DailyTimelineProps) {
-  const router = useRouter()
+export function DailyTimeline({ initialAppointments, selectedDate, onDateChange }: DailyTimelineProps) {
   const { toast } = useToast()
   const [loadingId, setLoadingId] = useState<string | null>(null)
 
   const currentDate = parseISO(selectedDate)
 
-  function handleDateChange(newDate: Date) {
+  function handleNavigate(newDate: Date) {
     const formatted = format(newDate, 'yyyy-MM-dd')
-    router.push(`/?date=${formatted}`)
+    onDateChange(formatted) // Atualização instantânea em memória
   }
 
   async function handleStatusChange(id: string, newStatus: 'scheduled' | 'completed' | 'canceled') {
@@ -59,9 +59,9 @@ export function DailyTimeline({ initialAppointments, selectedDate }: DailyTimeli
 
   return (
     <div className="space-y-4">
-      {/* NAVEGADOR DE DATA */}
+      {/* NAVEGADOR DE DATA (INSTANTÂNEO 0MS) */}
       <div className="bg-white px-4 py-3 border-b border-slate-100 sticky top-[72px] z-10 shadow-xs flex items-center justify-between">
-        <Button variant="outline" size="icon" className="h-10 w-10 rounded-xl" onClick={() => handleDateChange(subDays(currentDate, 1))}>
+        <Button variant="outline" size="icon" className="h-10 w-10 rounded-xl" onClick={() => handleNavigate(subDays(currentDate, 1))}>
           <ChevronLeft className="h-5 w-5" />
         </Button>
 
@@ -72,17 +72,17 @@ export function DailyTimeline({ initialAppointments, selectedDate }: DailyTimeli
           <input 
             type="date" 
             value={selectedDate}
-            onChange={(e) => e.target.value && router.push(`/?date=${e.target.value}`)}
+            onChange={(e) => e.target.value && onDateChange(e.target.value)}
             className="text-xs text-blue-600 bg-transparent border-none text-center font-medium focus:outline-none cursor-pointer"
           />
         </div>
 
-        <Button variant="outline" size="icon" className="h-10 w-10 rounded-xl" onClick={() => handleDateChange(addDays(currentDate, 1))}>
+        <Button variant="outline" size="icon" className="h-10 w-10 rounded-xl" onClick={() => handleNavigate(addDays(currentDate, 1))}>
           <ChevronRight className="h-5 w-5" />
         </Button>
       </div>
 
-      {/* REGISTROS DE VISITAS */}
+      {/* LISTA DE REGISTROS DE VISITAS */}
       {initialAppointments.length === 0 ? (
         <div className="flex flex-col items-center justify-center mt-16 px-4 text-center">
           <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
@@ -113,7 +113,6 @@ export function DailyTimeline({ initialAppointments, selectedDate }: DailyTimeli
                     : 'border-slate-100'
                 }`}
               >
-                {/* Cabeçalho do Card */}
                 <div className="flex justify-between items-start gap-2">
                   <div>
                     <h3 className="text-lg font-bold text-slate-900 uppercase tracking-tight">
@@ -125,7 +124,6 @@ export function DailyTimeline({ initialAppointments, selectedDate }: DailyTimeli
                     </div>
                   </div>
 
-                  {/* ÍCONE DO OLHINHO PARA VER DETALHES / EDITAR */}
                   <div className="flex items-center gap-1">
                     <AppointmentDetailsDrawer appointment={apt} selectedDate={selectedDate} />
                     
@@ -141,7 +139,6 @@ export function DailyTimeline({ initialAppointments, selectedDate }: DailyTimeli
                   </div>
                 </div>
 
-                {/* Endereço */}
                 {client.address && (
                   <div className="flex items-start gap-2 text-slate-600 text-sm mt-3">
                     <MapPin size={16} className="shrink-0 mt-0.5 text-slate-400" />
@@ -149,7 +146,6 @@ export function DailyTimeline({ initialAppointments, selectedDate }: DailyTimeli
                   </div>
                 )}
 
-                {/* Ações Rápidas */}
                 <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t border-slate-100">
                   {client.address && (
                     <Button 

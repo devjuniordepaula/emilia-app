@@ -3,9 +3,7 @@ import { createClient } from '@/utils/supabase/server'
 import { AppointmentsView } from '@/components/feactures/AppointmentsView'
 import { Appointment } from '@/components/feactures/DailyTimeLine'
 import { NewAppointmentDrawer } from '@/components/feactures/NewAppointmentDrawer'
-import { getMonthlyAppointments } from '@/app/actions/appointments'
-import { format } from 'date-fns'
-
+import { format, startOfMonth, endOfMonth } from 'date-fns'
 
 interface HomeProps {
   searchParams: Promise<{ date?: string }>
@@ -16,35 +14,38 @@ async function AppointmentsContainer({ searchParams }: { searchParams: Promise<{
   const resolvedParams = await searchParams
   
   const selectedDate = resolvedParams.date || format(new Date(), 'yyyy-MM-dd')
-  const yearMonth = selectedDate.substring(0, 7) // "YYYY-MM"
+  
+  // Calcula inicio e fim do mês atual
+  const currentDateObj = new Date(`${selectedDate}T00:00:00`)
+  const firstDayOfMonth = format(startOfMonth(currentDateObj), 'yyyy-MM-dd')
+  const lastDayOfMonth = format(endOfMonth(currentDateObj), 'yyyy-MM-dd')
 
-  // Executa as duas consultas em paralelo para máxima performance
-  const [appointmentsRes, monthlyAppointments] = await Promise.all([
-    supabase
-      .from('appointments')
-      .select(`
+  // Busca TODAS as visitas do mês ativo de uma só vez
+  const { data: monthAppointments } = await supabase
+    .from('appointments')
+    .select(`
+      id,
+      appointment_date,
+      start_time,
+      end_time,
+      status,
+      clients (
         id,
-        start_time,
-        end_time,
-        status,
-        clients (
-          name,
-          address,
-          phone
-        )
-      `)
-      .eq('appointment_date', selectedDate)
-      .order('start_time', { ascending: true }),
-    getMonthlyAppointments(yearMonth)
-  ])
+        name,
+        address,
+        phone
+      )
+    `)
+    .gte('appointment_date', firstDayOfMonth)
+    .lte('appointment_date', lastDayOfMonth)
+    .order('start_time', { ascending: true })
 
-  const formattedAppointments = (appointmentsRes.data || []) as unknown as Appointment[]
+  const formattedAppointments = (monthAppointments || []) as unknown as Appointment[]
 
   return (
     <AppointmentsView 
-      initialAppointments={formattedAppointments}
-      monthlyAppointments={monthlyAppointments}
-      selectedDate={selectedDate}
+      monthAppointments={formattedAppointments}
+      initialSelectedDate={selectedDate}
     />
   )
 }
