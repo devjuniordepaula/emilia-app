@@ -43,12 +43,14 @@ export function MonthCalendarView({ selectedDate, monthlyAppointments, onSelectD
   const days = eachDayOfInterval({ start: startDate, end: endDate })
   const selected = parseISO(selectedDate)
 
-  // Conjunto de datas que possuem pelo menos uma visita
-  const datesWithVisits = new Set(monthlyAppointments.map(a => a.appointment_date))
+  // Mapeia quantidade de visitas por dia para destacar
+  const visitsCountByDate = monthlyAppointments.reduce((acc, curr) => {
+    acc[curr.appointment_date] = (acc[curr.appointment_date] || 0) + 1
+    return acc
+  }, {} as Record<string, number>)
 
   function handleMonthChange(newMonth: Date) {
     setCurrentMonth(newMonth)
-    // Atualiza a URL para o primeiro dia do novo mês
     const newDateStr = format(newMonth, 'yyyy-MM-01')
     router.push(`/?date=${newDateStr}`)
   }
@@ -63,20 +65,10 @@ export function MonthCalendarView({ selectedDate, monthlyAppointments, onSelectD
         </h2>
 
         <div className="flex gap-1">
-          <Button 
-            variant="outline" 
-            size="icon" 
-            className="h-9 w-9 rounded-xl"
-            onClick={() => handleMonthChange(subMonths(currentMonth, 1))}
-          >
+          <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl" onClick={() => handleMonthChange(subMonths(currentMonth, 1))}>
             <ChevronLeft size={18} />
           </Button>
-          <Button 
-            variant="outline" 
-            size="icon" 
-            className="h-9 w-9 rounded-xl"
-            onClick={() => handleMonthChange(addMonths(currentMonth, 1))}
-          >
+          <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl" onClick={() => handleMonthChange(addMonths(currentMonth, 1))}>
             <ChevronRight size={18} />
           </Button>
         </div>
@@ -99,29 +91,36 @@ export function MonthCalendarView({ selectedDate, monthlyAppointments, onSelectD
           const dateStr = format(day, 'yyyy-MM-dd')
           const isSelected = isSameDay(day, selected)
           const isCurrentMonth = isSameMonth(day, currentMonth)
-          const hasVisit = datesWithVisits.has(dateStr)
+          const visitCount = visitsCountByDate[dateStr] || 0
+          const hasVisit = visitCount > 0
 
           return (
             <button
               key={dateStr}
               onClick={() => onSelectDate(dateStr)}
-              className={`h-11 rounded-xl flex flex-col items-center justify-center relative transition-all ${
+              className={`h-12 rounded-xl flex flex-col items-center justify-center relative transition-all ${
                 !isCurrentMonth ? 'text-slate-300' : 'text-slate-800 font-medium'
               } ${
                 isSelected 
-                  ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-600/30' 
+                  ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-600/30 z-10' 
+                  : hasVisit 
+                  ? 'bg-blue-50/80 text-blue-900 font-bold border border-blue-200' 
                   : isToday(day) 
                   ? 'border border-blue-600 text-blue-600 font-semibold' 
                   : 'hover:bg-slate-100'
               }`}
             >
-              <span>{format(day, 'd')}</span>
+              <span className="text-sm">{format(day, 'd')}</span>
               
-              {/* Ponto Indicador de Visita */}
+              {/* DESTAQUE DE VISITA (Badge com contador ou ponto) */}
               {hasVisit && (
-                <span className={`w-1.5 h-1.5 rounded-full absolute bottom-1 ${
-                  isSelected ? 'bg-white' : 'bg-blue-600'
-                }`} />
+                <span className={`text-[10px] font-extrabold px-1 rounded-full leading-none mt-0.5 ${
+                  isSelected 
+                    ? 'bg-white text-blue-600' 
+                    : 'bg-blue-600 text-white'
+                }`}>
+                  {visitCount > 1 ? `${visitCount}v` : '•'}
+                </span>
               )}
             </button>
           )

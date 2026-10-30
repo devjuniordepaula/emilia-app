@@ -9,6 +9,8 @@ export async function createAppointment(formData: FormData) {
   const rawClientName = formData.get('client_name') as string
   const appointmentDate = formData.get('appointment_date') as string
   const startTime = formData.get('start_time') as string
+  const address = formData.get('address') as string
+  const phone = formData.get('phone') as string
 
   if (!rawClientName || !rawClientName.trim()) {
     return { error: 'Por favor, informe o nome do cliente.' }
@@ -17,12 +19,10 @@ export async function createAppointment(formData: FormData) {
   const clientName = rawClientName.trim().toUpperCase()
 
   let clientId: string
-  let clientPhone: string | null = null
 
-  // 1. Busca ou cria cliente
   const { data: existingClient, error: clientSelectError } = await supabase
     .from('clients')
-    .select('id, phone')
+    .select('id')
     .eq('name', clientName)
     .maybeSingle()
 
@@ -32,12 +32,17 @@ export async function createAppointment(formData: FormData) {
 
   if (existingClient) {
     clientId = existingClient.id
-    clientPhone = existingClient.phone
+    if (address || phone) {
+      await supabase
+        .from('clients')
+        .update({ address, phone })
+        .eq('id', clientId)
+    }
   } else {
     const { data: newClient, error: clientInsertError } = await supabase
       .from('clients')
-      .insert([{ name: clientName }])
-      .select('id, phone')
+      .insert([{ name: clientName, address, phone }])
+      .select('id')
       .single()
 
     if (clientInsertError || !newClient) {
@@ -47,11 +52,9 @@ export async function createAppointment(formData: FormData) {
     clientId = newClient.id
   }
 
-  // 2. Duração padrão de 1 hora
   const [hours, minutes] = startTime.split(':').map(Number)
   const endTime = `${String((hours + 1) % 24).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
 
-  // 3. Checagem de conflitos
   const { data: conflictingAppointments, error: queryError } = await supabase
     .from('appointments')
     .select('id')
@@ -67,7 +70,6 @@ export async function createAppointment(formData: FormData) {
     return { error: 'Já existe uma visita agendada para este horário.' }
   }
 
-  // 4. Salva a visita
   const { data: insertedAppointment, error: insertError } = await supabase
     .from('appointments')
     .insert([{ 
@@ -90,12 +92,80 @@ export async function createAppointment(formData: FormData) {
     data: {
       id: insertedAppointment.id,
       clientName,
-      clientPhone,
+      clientPhone: phone,
       appointmentDate,
       startTime,
       endTime
     }
   }
+}
+
+export async function updateAppointment(appointmentId: string, clientId: string, formData: FormData) {
+  const supabase = await createClient()
+
+  const clientName = (formData.get('client_name') as string).trim().toUpperCase()
+  const appointmentDate = formData.get('appointment_date') as string
+  const startTime = formData.get('start_time') as string
+  const address = formData.get('address') as string
+  const phone = formData.get('phone') as string
+  const status = formData.get('status') as string
+
+  // 1. Atualiza dados do cliente
+  await supabase
+    .from('clients')
+    .update({ name: clientName, address, phone })
+    .eq('id', clientId)
+
+  // 2. Calcula horário fim
+  const [hours, minutes] = startTime.split(':').map(Number)
+  const endTime = `${String((hours + 1) % 24).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+
+  // 3. Checa colisão ignorando a própria visita
+  const { data: conflicting } = await supabase
+    .from('appointments')
+    .select('id')
+    .eq('appointment_date', appointmentDate)
+    .neq('id', appointmentId)
+    .lt('start_time', endTime)
+    .gt('end_time', startTime)
+
+  if (conflicting && conflicting.length > 0) {
+    return { error: 'Horário em conflito com outra visita agendada.' }
+  }
+
+  // 4. Atualiza a visita
+  const { error } = await supabase
+    .from('appointments')
+    .update({
+      appointment_date: appointmentDate,
+      start_time: startTime,
+      end_time: endTime,
+      status
+    })
+    .eq('id', appointmentId)
+
+  if (error) {
+    return { error: 'Erro ao atualizar dados da visita.' }
+  }
+
+  revalidatePath('/')
+  return { success: true }
+}
+
+export async function deleteAppointment(appointmentId: string) {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('appointments')
+    .delete()
+    .eq('id', appointmentId)
+
+  if (error) {
+    return { error: 'Erro ao excluir visita.' }
+  }
+
+  revalidatePath('/')
+  return { success: true }
 }
 
 export async function updateAppointmentStatus(

@@ -2,14 +2,16 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { MapPin, Phone, Clock, ChevronLeft, ChevronRight, CheckCircle2, XCircle } from 'lucide-react'
+import { MapPin, Phone, Clock, ChevronLeft, ChevronRight, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { updateAppointmentStatus } from '@/app/actions/appointments'
 import { useToast } from '@/hooks/use-toast'
 import { format, addDays, subDays, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { AppointmentDetailsDrawer } from './AppointmentDetailsDrawer'
 
 export type Client = {
+  id: string
   name: string
   address?: string | null
   phone?: string | null
@@ -46,29 +48,20 @@ export function DailyTimeline({ initialAppointments, selectedDate }: DailyTimeli
     setLoadingId(null)
 
     if (res.error) {
-      toast({
-        variant: 'destructive',
-        title: 'Erro',
-        description: res.error
-      })
+      toast({ variant: 'destructive', title: 'Erro', description: res.error })
     } else {
       toast({
         title: 'Status Atualizado',
-        description: newStatus === 'completed' ? 'Visita marcada como concluída!' : 'Visita cancelada.'
+        description: newStatus === 'completed' ? 'Visita marcada como concluída!' : 'Visita reaberta.'
       })
     }
   }
 
   return (
     <div className="space-y-4">
-      {/* NAVEGADOR DE DATA (MOBILE-FIRST) */}
+      {/* NAVEGADOR DE DATA */}
       <div className="bg-white px-4 py-3 border-b border-slate-100 sticky top-[72px] z-10 shadow-xs flex items-center justify-between">
-        <Button 
-          variant="outline" 
-          size="icon" 
-          className="h-10 w-10 rounded-xl"
-          onClick={() => handleDateChange(subDays(currentDate, 1))}
-        >
+        <Button variant="outline" size="icon" className="h-10 w-10 rounded-xl" onClick={() => handleDateChange(subDays(currentDate, 1))}>
           <ChevronLeft className="h-5 w-5" />
         </Button>
 
@@ -84,17 +77,12 @@ export function DailyTimeline({ initialAppointments, selectedDate }: DailyTimeli
           />
         </div>
 
-        <Button 
-          variant="outline" 
-          size="icon" 
-          className="h-10 w-10 rounded-xl"
-          onClick={() => handleDateChange(addDays(currentDate, 1))}
-        >
+        <Button variant="outline" size="icon" className="h-10 w-10 rounded-xl" onClick={() => handleDateChange(addDays(currentDate, 1))}>
           <ChevronRight className="h-5 w-5" />
         </Button>
       </div>
 
-      {/* LISTA DE REGISTROS DE VISITAS */}
+      {/* REGISTROS DE VISITAS */}
       {initialAppointments.length === 0 ? (
         <div className="flex flex-col items-center justify-center mt-16 px-4 text-center">
           <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
@@ -137,16 +125,20 @@ export function DailyTimeline({ initialAppointments, selectedDate }: DailyTimeli
                     </div>
                   </div>
 
-                  {/* Badge de Status */}
-                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                    isCompleted 
-                      ? 'bg-green-100 text-green-700' 
-                      : isCanceled 
-                      ? 'bg-red-100 text-red-700' 
-                      : 'bg-amber-100 text-amber-700'
-                  }`}>
-                    {isCompleted ? 'Concluída' : isCanceled ? 'Cancelada' : 'Agendada'}
-                  </span>
+                  {/* ÍCONE DO OLHINHO PARA VER DETALHES / EDITAR */}
+                  <div className="flex items-center gap-1">
+                    <AppointmentDetailsDrawer appointment={apt} selectedDate={selectedDate} />
+                    
+                    <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                      isCompleted 
+                        ? 'bg-green-100 text-green-700' 
+                        : isCanceled 
+                        ? 'bg-red-100 text-red-700' 
+                        : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {isCompleted ? 'Concluída' : isCanceled ? 'Cancelada' : 'Agendada'}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Endereço */}
@@ -157,16 +149,14 @@ export function DailyTimeline({ initialAppointments, selectedDate }: DailyTimeli
                   </div>
                 )}
 
-                {/* Ações de Campo (Navegação, WhatsApp e Status) */}
+                {/* Ações Rápidas */}
                 <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t border-slate-100">
                   {client.address && (
                     <Button 
                       variant="secondary" 
                       size="sm"
                       className="flex-1 rounded-xl bg-slate-100 text-xs font-medium" 
-                      onClick={() => {
-                        window.open(`https://maps.google.com/?q=${encodeURIComponent(client.address!)}`, '_blank')
-                      }}
+                      onClick={() => window.open(`https://maps.google.com/?q=${encodeURIComponent(client.address!)}`, '_blank')}
                     >
                       <MapPin size={14} className="mr-1.5" />
                       Navegar
@@ -187,7 +177,6 @@ export function DailyTimeline({ initialAppointments, selectedDate }: DailyTimeli
                     </Button>
                   )}
 
-                  {/* Toggle Rápido de Conclusão */}
                   {!isCanceled && (
                     <Button
                       variant={isCompleted ? "outline" : "default"}
