@@ -4,8 +4,6 @@ import { DailyTimeline, Appointment } from '@/components/feactures/DailyTimeLine
 import { NewAppointmentDrawer } from '@/components/feactures/NewAppointmentDrawer'
 import { format } from 'date-fns'
 
-export const dynamic = 'force-dynamic'
-
 interface HomeProps {
   searchParams: Promise<{ date?: string }>
 }
