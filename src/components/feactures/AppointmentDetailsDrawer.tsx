@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Eye, Pencil, Trash2, MapPin, Phone, Clock, X, Check } from 'lucide-react'
+import { Eye, Pencil, Trash2, MapPin, Phone, Clock } from 'lucide-react'
 import {
   Drawer,
   DrawerContent,
@@ -30,10 +30,15 @@ export function AppointmentDetailsDrawer({ appointment, selectedDate }: Appointm
   const { toast } = useToast()
 
   const client = Array.isArray(appointment.clients) ? appointment.clients[0] : appointment.clients
+  
   if (!client) return null
 
   async function handleUpdate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    
+    // Type Guard explícito para garantir a não-nulidade dentro do escopo assíncrono
+    if (!client) return
+
     setIsLoading(true)
 
     const formData = new FormData(event.currentTarget)
@@ -51,6 +56,7 @@ export function AppointmentDetailsDrawer({ appointment, selectedDate }: Appointm
   }
 
   async function handleDelete() {
+    if (!client) return
     if (!confirm('Tem certeza que deseja excluir esta visita?')) return
 
     setIsDeleting(true)
@@ -94,7 +100,6 @@ export function AppointmentDetailsDrawer({ appointment, selectedDate }: Appointm
           </DrawerHeader>
 
           {isEditing ? (
-            /* MODAL DE EDIÇÃO */
             <form onSubmit={handleUpdate} className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="client_name">Nome do Cliente</Label>
@@ -146,7 +151,6 @@ export function AppointmentDetailsDrawer({ appointment, selectedDate }: Appointm
               </div>
             </form>
           ) : (
-            /* VISUALIZAÇÃO DOS DETALHES */
             <div className="space-y-4 pt-2">
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3">
                 <div>
@@ -174,7 +178,6 @@ export function AppointmentDetailsDrawer({ appointment, selectedDate }: Appointm
                 )}
               </div>
 
-              {/* Botões de Ação Direta */}
               <div className="space-y-2 pt-2">
                 {client.address && (
                   <Button className="w-full h-12 rounded-xl bg-slate-900 text-white" onClick={() => window.open(`https://maps.google.com/?q=${encodeURIComponent(client.address!)}`, '_blank')}>
