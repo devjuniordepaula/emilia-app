@@ -1,18 +1,20 @@
+import { Suspense } from 'react'
 import { createClient } from '@/utils/supabase/server'
 import { DailyTimeline, Appointment } from '@/components/feactures/DailyTimeLine'
 import { NewAppointmentDrawer } from '@/components/feactures/NewAppointmentDrawer'
 import { format } from 'date-fns'
 
+export const dynamic = 'force-dynamic'
 
 interface HomeProps {
   searchParams: Promise<{ date?: string }>
 }
 
-export default async function Home({ searchParams }: HomeProps) {
+// 1. Subcomponente isolado para carregamento e resolução dos dados dinâmicos
+async function AppointmentsContainer({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
   const supabase = await createClient()
   const resolvedParams = await searchParams
   
-  // Data selecionada via parâmetro de busca ou data atual
   const selectedDate = resolvedParams.date || format(new Date(), 'yyyy-MM-dd')
 
   const { data: appointments } = await supabase
@@ -34,6 +36,27 @@ export default async function Home({ searchParams }: HomeProps) {
   const formattedAppointments = (appointments || []) as unknown as Appointment[]
 
   return (
+    <DailyTimeline 
+      initialAppointments={formattedAppointments} 
+      selectedDate={selectedDate}
+    />
+  )
+}
+
+// 2. Componente de Skeleton para Feedback Visual durante a navegação
+function TimelineSkeleton() {
+  return (
+    <div className="p-4 space-y-4 animate-pulse">
+      <div className="h-12 bg-slate-200 rounded-xl w-full" />
+      <div className="h-32 bg-slate-200 rounded-2xl w-full" />
+      <div className="h-32 bg-slate-200 rounded-2xl w-full" />
+    </div>
+  )
+}
+
+// 3. Shell da Página Principal com suporte nativo ao React 19 / Next.js 15 Suspense
+export default function Home({ searchParams }: HomeProps) {
+  return (
     <main className="min-h-screen bg-slate-50 pb-24 relative">
       <header className="bg-white px-4 pt-10 pb-3 border-b border-slate-100 flex items-center justify-between">
         <div>
@@ -42,10 +65,10 @@ export default async function Home({ searchParams }: HomeProps) {
         </div>
       </header>
 
-      <DailyTimeline 
-        initialAppointments={formattedAppointments} 
-        selectedDate={selectedDate}
-      />
+      {/* Fronteira de Suspense que resolve o erro de prerender no build */}
+      <Suspense fallback={<TimelineSkeleton />}>
+        <AppointmentsContainer searchParams={searchParams} />
+      </Suspense>
 
       <NewAppointmentDrawer />
     </main>
