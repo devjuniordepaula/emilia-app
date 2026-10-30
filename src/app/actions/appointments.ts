@@ -17,10 +17,12 @@ export async function createAppointment(formData: FormData) {
   const clientName = rawClientName.trim().toUpperCase()
 
   let clientId: string
+  let clientPhone: string | null = null
 
+  // 1. Busca ou cria cliente
   const { data: existingClient, error: clientSelectError } = await supabase
     .from('clients')
-    .select('id')
+    .select('id, phone')
     .eq('name', clientName)
     .maybeSingle()
 
@@ -30,11 +32,12 @@ export async function createAppointment(formData: FormData) {
 
   if (existingClient) {
     clientId = existingClient.id
+    clientPhone = existingClient.phone
   } else {
     const { data: newClient, error: clientInsertError } = await supabase
       .from('clients')
       .insert([{ name: clientName }])
-      .select('id')
+      .select('id, phone')
       .single()
 
     if (clientInsertError || !newClient) {
@@ -44,9 +47,11 @@ export async function createAppointment(formData: FormData) {
     clientId = newClient.id
   }
 
+  // 2. Duração padrão de 1 hora
   const [hours, minutes] = startTime.split(':').map(Number)
   const endTime = `${String((hours + 1) % 24).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
 
+  // 3. Checagem de conflitos
   const { data: conflictingAppointments, error: queryError } = await supabase
     .from('appointments')
     .select('id')
@@ -62,7 +67,8 @@ export async function createAppointment(formData: FormData) {
     return { error: 'Já existe uma visita agendada para este horário.' }
   }
 
-  const { error: insertError } = await supabase
+  // 4. Salva a visita
+  const { data: insertedAppointment, error: insertError } = await supabase
     .from('appointments')
     .insert([{ 
       client_id: clientId, 
@@ -70,13 +76,26 @@ export async function createAppointment(formData: FormData) {
       start_time: startTime, 
       end_time: endTime 
     }])
+    .select('id')
+    .single()
 
-  if (insertError) {
+  if (insertError || !insertedAppointment) {
     return { error: 'Erro ao salvar o agendamento no banco de dados.' }
   }
 
   revalidatePath('/')
-  return { success: true }
+  
+  return { 
+    success: true,
+    data: {
+      id: insertedAppointment.id,
+      clientName,
+      clientPhone,
+      appointmentDate,
+      startTime,
+      endTime
+    }
+  }
 }
 
 export async function updateAppointmentStatus(
@@ -96,4 +115,22 @@ export async function updateAppointmentStatus(
 
   revalidatePath('/')
   return { success: true }
+}
+
+export async function getMonthlyAppointments(yearMonth: string) {
+  const supabase = await createClient()
+  const startDate = `${yearMonth}-01`
+  
+  const [yearStr, monthStr] = yearMonth.split('-')
+  const lastDay = new Date(parseInt(yearStr, 10), parseInt(monthStr, 10), 0).getDate()
+  const endDate = `${yearMonth}-${String(lastDay).padStart(2, '0')}`
+
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('appointment_date, status')
+    .gte('appointment_date', startDate)
+    .lte('appointment_date', endDate)
+
+  if (error) return []
+  return data
 }

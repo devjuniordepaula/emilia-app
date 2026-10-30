@@ -1,29 +1,46 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
+import type { Metadata, Viewport } from 'next'
+import { Inter } from 'next/font/google'
+import './globals.css'
+import { Toaster } from '@/components/ui/toaster'
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+const inter = Inter({ subsets: ['latin'] })
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
+// Meta tags específicas do PWA e iOS
 export const metadata: Metadata = {
-  title: "Calendario Pessoal",
-  description: "Meu calendário anual",
-};
+  title: 'Visitas da Emilia',
+  description: 'Gestão de visitas e clientes em campo',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Visitas Emilia',
+  },
+  formatDetection: {
+    telephone: false,
+  },
+}
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+// Configuração do Viewport para comportamento de App Nativo no iPhone 11
+export const viewport: Viewport = {
+  themeColor: '#2563eb',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover', // Respeita a notch e home indicator do iPhone
+}
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode
+}>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="pt-BR">
+      <body className={`${inter.className} bg-slate-50 text-slate-900 antialiased selection:bg-blue-100`}>
+        {children}
+        <Toaster />
+      </body>
     </html>
-  );
+  )
 }

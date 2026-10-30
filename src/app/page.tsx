@@ -1,58 +1,64 @@
 import { Suspense } from 'react'
 import { createClient } from '@/utils/supabase/server'
-import { DailyTimeline, Appointment } from '@/components/feactures/DailyTimeLine'
+import { AppointmentsView } from '@/components/feactures/AppointmentsView'
+import { Appointment } from '@/components/feactures/DailyTimeLine'
 import { NewAppointmentDrawer } from '@/components/feactures/NewAppointmentDrawer'
+import { getMonthlyAppointments } from '@/app/actions/appointments'
 import { format } from 'date-fns'
+
 
 interface HomeProps {
   searchParams: Promise<{ date?: string }>
 }
 
-// 1. Subcomponente isolado para carregamento e resolução dos dados dinâmicos
 async function AppointmentsContainer({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
   const supabase = await createClient()
   const resolvedParams = await searchParams
   
   const selectedDate = resolvedParams.date || format(new Date(), 'yyyy-MM-dd')
+  const yearMonth = selectedDate.substring(0, 7) // "YYYY-MM"
 
-  const { data: appointments } = await supabase
-    .from('appointments')
-    .select(`
-      id,
-      start_time,
-      end_time,
-      status,
-      clients (
-        name,
-        address,
-        phone
-      )
-    `)
-    .eq('appointment_date', selectedDate)
-    .order('start_time', { ascending: true })
+  // Executa as duas consultas em paralelo para máxima performance
+  const [appointmentsRes, monthlyAppointments] = await Promise.all([
+    supabase
+      .from('appointments')
+      .select(`
+        id,
+        start_time,
+        end_time,
+        status,
+        clients (
+          name,
+          address,
+          phone
+        )
+      `)
+      .eq('appointment_date', selectedDate)
+      .order('start_time', { ascending: true }),
+    getMonthlyAppointments(yearMonth)
+  ])
 
-  const formattedAppointments = (appointments || []) as unknown as Appointment[]
+  const formattedAppointments = (appointmentsRes.data || []) as unknown as Appointment[]
 
   return (
-    <DailyTimeline 
-      initialAppointments={formattedAppointments} 
+    <AppointmentsView 
+      initialAppointments={formattedAppointments}
+      monthlyAppointments={monthlyAppointments}
       selectedDate={selectedDate}
     />
   )
 }
 
-// 2. Componente de Skeleton para Feedback Visual durante a navegação
 function TimelineSkeleton() {
   return (
     <div className="p-4 space-y-4 animate-pulse">
-      <div className="h-12 bg-slate-200 rounded-xl w-full" />
+      <div className="h-10 bg-slate-200 rounded-xl w-full" />
       <div className="h-32 bg-slate-200 rounded-2xl w-full" />
       <div className="h-32 bg-slate-200 rounded-2xl w-full" />
     </div>
   )
 }
 
-// 3. Shell da Página Principal com suporte nativo ao React 19 / Next.js 15 Suspense
 export default function Home({ searchParams }: HomeProps) {
   return (
     <main className="min-h-screen bg-slate-50 pb-24 relative">
@@ -63,7 +69,6 @@ export default function Home({ searchParams }: HomeProps) {
         </div>
       </header>
 
-      {/* Fronteira de Suspense que resolve o erro de prerender no build */}
       <Suspense fallback={<TimelineSkeleton />}>
         <AppointmentsContainer searchParams={searchParams} />
       </Suspense>
